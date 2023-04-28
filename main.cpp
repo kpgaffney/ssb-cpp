@@ -1,24 +1,67 @@
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "oneapi/tbb.h"
 
+#include <sqlite3.h>
+
 #include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
 namespace fs = std::filesystem;
 
+using Accumulator = std::vector<std::pair<bool, int64_t>>;
+
+Accumulator agg_merge(Accumulator a, const Accumulator &b) {
+  for (size_t i = 0; i < a.size(); ++i) {
+    a[i].first = a[i].first || b[i].first;
+    a[i].second += b[i].second;
+  }
+  return a;
+}
+
+struct Q2Row {
+  Q2Row(uint16_t d_year, uint16_t p_brand1, uint32_t sum_lo_revenue)
+      : d_year(d_year), p_brand1(p_brand1), sum_lo_revenue(sum_lo_revenue) {}
+
+  friend bool operator==(const Q2Row &a, const Q2Row &b) {
+    return a.d_year == b.d_year && a.p_brand1 == b.p_brand1 &&
+           a.sum_lo_revenue == b.sum_lo_revenue;
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const Q2Row &row) {
+    os << row.d_year << '|' << std::setw(4) << row.p_brand1 << '|'
+       << row.sum_lo_revenue;
+    return os;
+  }
+
+  uint16_t d_year;
+  uint16_t p_brand1;
+  uint32_t sum_lo_revenue;
+};
+
+template <typename T> void print(std::vector<T> result) {
+  if (result.empty()) {
+    return;
+  }
+
+  std::cout << result.front() << std::endl;
+
+  if (result.size() > 2) {
+    std::cout << "..." << std::endl;
+  }
+
+  std::cout << result.back() << std::endl;
+}
+
 template <typename T>
 void log(const std::string &query, const std::string &key, T &&value) {
   std::cout << R"({"query": ")" << query << R"(", ")" << key << R"(": ")"
             << value << R"("})" << std::endl;
 }
-
-namespace csv {
 
 template <typename T> struct Column {
   Column(size_t argIndex, std::vector<T> &argValues)
@@ -27,76 +70,80 @@ template <typename T> struct Column {
   std::vector<T> &values;
 };
 
-void parse_item(const std::string &item, uint8_t &value) {
-  value = std::stoi(item);
+void read_column(sqlite3_stmt *stmt, Column<uint8_t> &column) {
+  int value = sqlite3_column_int(stmt, (int)column.index);
+  column.values.push_back(value);
 }
 
-void parse_item(const std::string &item, uint16_t &value) {
-  value = std::stoi(item);
+void read_column(sqlite3_stmt *stmt, Column<uint16_t> &column) {
+  int value = sqlite3_column_int(stmt, (int)column.index);
+  column.values.push_back(value);
 }
 
-void parse_item(const std::string &item, uint32_t &value) {
-  value = std::stoi(item);
+void read_column(sqlite3_stmt *stmt, Column<uint32_t> &column) {
+  int value = sqlite3_column_int(stmt, (int)column.index);
+  column.values.push_back(value);
 }
 
-void parse_item(const std::string &item, std::string &value) { value = item; }
-
-template <typename T>
-void parse_item(const std::vector<std::string> &items, Column<T> &column) {
-  T value;
-  parse_item(items.at(column.index), value);
+void read_column(sqlite3_stmt *stmt, Column<std::string> &column) {
+  std::string value = (char *)sqlite3_column_text(stmt, (int)column.index);
   column.values.push_back(value);
 }
 
 template <typename... T>
-void read(const std::filesystem::path &path, char delim, Column<T>... columns) {
-  std::ifstream file_stream(path);
-  if (!file_stream) {
-    throw std::runtime_error(std::strerror(errno));
+void read_table(const char *path, const char *table, Column<T>... columns) {
+  int rc;
+
+  sqlite3 *db;
+  rc = sqlite3_open(path, &db);
+  if (rc != SQLITE_OK) {
+    throw std::runtime_error(sqlite3_errmsg(db));
   }
 
-  std::string line;
-  std::string item;
-  std::vector<std::string> items;
+  std::string sql = "SELECT * FROM " + std::string(table);
 
-  while (std::getline(file_stream, line)) {
-    std::istringstream line_stream(line);
-    while (std::getline(line_stream, item, delim)) {
-      items.push_back(item);
+  sqlite3_stmt *stmt;
+  rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    throw std::runtime_error(sqlite3_errmsg(db));
+  }
+
+  while (true) {
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+      (read_column(stmt, columns), ...);
+    } else if (rc == SQLITE_DONE) {
+      break;
+    } else {
+      throw std::runtime_error(sqlite3_errmsg(db));
     }
-
-    ((parse_item(items, columns)), ...);
-
-    items.clear();
   }
 }
-
-} // namespace csv
 
 struct Database {
   // Part columns.
   std::vector<uint32_t> p_partkey;
-  std::vector<std::string> p_mfgr;
-  std::vector<std::string> p_category;
-  std::vector<std::string> p_brand1;
+  std::vector<uint8_t> p_mfgr;
+  std::vector<uint8_t> p_category;
+  std::vector<uint16_t> p_brand1;
 
   // Supplier columns.
   std::vector<uint32_t> s_suppkey;
-  std::vector<std::string> s_city;
-  std::vector<std::string> s_nation;
-  std::vector<std::string> s_region;
+  std::vector<uint8_t> s_city;
+  std::vector<uint8_t> s_nation;
+  std::vector<uint8_t> s_region;
 
   // Customer columns
   std::vector<uint32_t> c_custkey;
-  std::vector<std::string> c_city;
-  std::vector<std::string> c_nation;
-  std::vector<std::string> c_region;
+  std::vector<uint8_t> c_city;
+  std::vector<uint8_t> c_nation;
+  std::vector<uint8_t> c_region;
 
   // Date columns.
   std::vector<uint32_t> d_datekey;
   std::vector<uint16_t> d_year;
   std::vector<uint32_t> d_yearmonthnum;
-  std::vector<std::string> d_yearmonth;
+  std::vector<uint32_t> d_yearmonth;
   std::vector<uint8_t> d_weeknuminyear;
 
   // Lineorder columns.
@@ -118,12 +165,12 @@ template <typename F> double time(F &&f) {
   return std::chrono::duration<double>(t1 - t0).count();
 }
 
-template <typename HashSet, typename C1, typename C2>
+template <typename HSK32, typename C1, typename C2>
 void q1(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
   double latency;
   uint64_t result;
 
-  HashSet hash_set;
+  HSK32 hash_set;
   latency = time([&] {
     for (size_t i = 0; i < db.d_datekey.size(); ++i) {
       if (c1(i)) {
@@ -175,27 +222,107 @@ void q1(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
   log(query, "Result", result);
 }
 
-template <typename HashSet>
+template <typename HSK32, typename HMK32V16, typename C1, typename C2>
+void q2(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
+  double latency;
+
+  HSK32 hash_set_supplier;
+  latency = time([&] {
+    for (size_t i = 0; i < db.s_suppkey.size(); ++i) {
+      if (c1(i)) {
+        hash_set_supplier.insert(db.s_suppkey[i]);
+      }
+    }
+  });
+
+  log(query, "BuildHashSetSupplier", latency);
+
+  HMK32V16 hash_map_part;
+  hash_map_part.reserve(db.p_partkey.size());
+  latency = time([&] {
+    for (size_t i = 0; i < db.p_partkey.size(); ++i) {
+      if (c2(i)) {
+        hash_map_part.emplace(db.p_partkey[i], db.p_brand1[i]);
+      }
+    }
+  });
+
+  log(query, "BuildHashMapPart", latency);
+
+  HMK32V16 hash_map_date;
+  hash_map_date.reserve(db.d_datekey.size());
+  latency = time([&] {
+    for (size_t i = 0; i < db.d_datekey.size(); ++i) {
+      hash_map_date.emplace(db.d_datekey[i], db.d_year[i]);
+    }
+  });
+
+  log(query, "BuildHashMapDate", latency);
+
+  Accumulator acc;
+  latency = time([&] {
+    acc = tbb::parallel_reduce(
+        tbb::blocked_range<size_t>(0, db.lo_orderdate.size()), Accumulator(512),
+        [&](const tbb::blocked_range<size_t> &r, Accumulator acc) {
+          for (size_t i = r.begin(); i < r.end(); ++i) {
+            auto part_it = hash_map_part.find(db.lo_partkey[i]);
+            if (part_it != hash_map_part.end() &&
+                hash_set_supplier.find(db.lo_suppkey[i]) !=
+                    hash_set_supplier.end()) {
+              auto date_it = hash_map_date.find(db.lo_orderdate[i]);
+              if (date_it != hash_map_date.end()) {
+                std::pair<bool, int64_t> &slot =
+                    acc[((date_it->second - 1992) << 6) |
+                        ((part_it->second - 40) & 0b111111)];
+                slot.first = true;
+                slot.second += db.lo_revenue[i];
+              }
+            }
+          }
+          return acc;
+        },
+        agg_merge);
+  });
+
+  log(query, "Probe", latency);
+
+  std::vector<Q2Row> result;
+
+  for (size_t i = 0; i < acc.size(); ++i) {
+    if (acc[i].first) {
+      result.emplace_back((i >> 6) + 1992, (i & 0b111111) + 40, acc[i].second);
+    }
+  }
+
+  std::sort(result.begin(), result.end(), [](const Q2Row &a, const Q2Row &b) {
+    return a.d_year < b.d_year ||
+           (a.d_year == b.d_year && a.p_brand1 < b.p_brand1);
+  });
+
+  print(result);
+}
+
+template <typename HSK32>
 void q1p1(const std::string &query, const Database &db) {
   auto c1 = [&](size_t i) { return db.d_year[i] == 1993; };
   auto c2 = [&](size_t i) {
     return db.lo_discount[i] >= 1 && db.lo_discount[i] <= 3 &&
            db.lo_quantity[i] < 25;
   };
-  q1<HashSet>(query, db, c1, c2);
+  q1<HSK32>(query, db, c1, c2);
 }
 
-template <typename HashSet>
+template <typename HSK32>
 void q1p2(const std::string &query, const Database &db) {
   auto c1 = [&](size_t i) { return db.d_yearmonthnum[i] == 199401; };
   auto c2 = [&](size_t i) {
     return db.lo_discount[i] >= 4 && db.lo_discount[i] <= 6 &&
            db.lo_quantity[i] >= 26 && db.lo_quantity[i] <= 35;
   };
-  q1<HashSet>(query, db, c1, c2);
+  q1<HSK32>(query, db, c1, c2);
 }
 
-template <typename HashSet>
+template <typename HSK32>
 void q1p3(const std::string &query, const Database &db) {
   auto c1 = [&](size_t i) {
     return db.d_weeknuminyear[i] == 6 && db.d_year[i] == 1994;
@@ -204,7 +331,40 @@ void q1p3(const std::string &query, const Database &db) {
     return db.lo_discount[i] >= 5 && db.lo_discount[i] <= 7 &&
            db.lo_quantity[i] >= 36 && db.lo_quantity[i] <= 40;
   };
-  q1<HashSet>(query, db, c1, c2);
+  q1<HSK32>(query, db, c1, c2);
+}
+
+template <typename HSK32, typename HMK32V16>
+void q2p1(const std::string &query, const Database &db) {
+  auto c1 = [&](size_t i) { return db.s_region[i] == 2; };
+  auto c2 = [&](size_t i) { return db.p_category[i] == 2; };
+  q2<HSK32, HMK32V16>(query, db, c1, c2);
+}
+
+template <typename HSK32, typename HMK32V16>
+void q2p2(const std::string &query, const Database &db) {
+  auto c1 = [&](size_t i) { return db.s_region[i] == 3; };
+  auto c2 = [&](size_t i) {
+    return db.p_brand1[i] >= 254 && db.p_brand1[i] <= 261;
+  };
+  q2<HSK32, HMK32V16>(query, db, c1, c2);
+}
+
+template <typename HSK32, typename HMK32V16>
+void q2p3(const std::string &query, const Database &db) {
+  auto c1 = [&](size_t i) { return db.s_region[i] == 4; };
+  auto c2 = [&](size_t i) { return db.p_brand1[i] == 254; };
+  q2<HSK32, HMK32V16>(query, db, c1, c2);
+}
+
+template <typename HSK32, typename HMK32V16>
+void all(const std::string &name, const Database &db) {
+  q1p1<HSK32>("q1p1<" + name + ">", db);
+  q1p2<HSK32>("q1p2<" + name + ">", db);
+  q1p3<HSK32>("q1p3<" + name + ">", db);
+  q2p1<HSK32, HMK32V16>("q2p1<" + name + ">", db);
+  q2p2<HSK32, HMK32V16>("q2p2<" + name + ">", db);
+  q2p3<HSK32, HMK32V16>("q2p3<" + name + ">", db);
 }
 
 int main(int argc, char **argv) {
@@ -214,45 +374,37 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  fs::path data_dir = argv[1];
+  char *data_dir = argv[1];
 
   Database db;
 
-  csv::read(data_dir / "part.tbl", '|', csv::Column(0, db.p_partkey),
-            csv::Column(2, db.p_mfgr), csv::Column(3, db.p_category),
-            csv::Column(4, db.p_brand1));
+  read_table(data_dir, "part_encoded", Column(0, db.p_partkey),
+             Column(2, db.p_mfgr), Column(3, db.p_category),
+             Column(4, db.p_brand1));
 
-  csv::read(data_dir / "supplier.tbl", '|', csv::Column(0, db.s_suppkey),
-            csv::Column(3, db.s_city), csv::Column(4, db.s_nation),
-            csv::Column(5, db.s_region));
+  read_table(data_dir, "supplier_encoded", Column(0, db.s_suppkey),
+             Column(3, db.s_city), Column(4, db.s_nation),
+             Column(5, db.s_region));
 
-  csv::read(data_dir / "customer.tbl", '|', csv::Column(0, db.c_custkey),
-            csv::Column(3, db.c_city), csv::Column(4, db.c_nation),
-            csv::Column(5, db.c_region));
+  read_table(data_dir, "customer_encoded", Column(0, db.c_custkey),
+             Column(3, db.c_city), Column(4, db.c_nation),
+             Column(5, db.c_region));
 
-  csv::read(data_dir / "date.tbl", '|', csv::Column(0, db.d_datekey),
-            csv::Column(4, db.d_year), csv::Column(5, db.d_yearmonthnum),
-            csv::Column(6, db.d_yearmonth),
-            csv::Column(11, db.d_weeknuminyear));
+  read_table(data_dir, "date_encoded", Column(0, db.d_datekey),
+             Column(4, db.d_year), Column(5, db.d_yearmonthnum),
+             Column(6, db.d_yearmonth), Column(11, db.d_weeknuminyear));
 
-  csv::read(data_dir / "lineorder.tbl", '|', csv::Column(2, db.lo_custkey),
-            csv::Column(3, db.lo_partkey), csv::Column(4, db.lo_suppkey),
-            csv::Column(5, db.lo_orderdate), csv::Column(8, db.lo_quantity),
-            csv::Column(9, db.lo_extendedprice),
-            csv::Column(11, db.lo_discount), csv::Column(12, db.lo_revenue),
-            csv::Column(13, db.lo_supplycost));
+  read_table(data_dir, "lineorder", Column(2, db.lo_custkey),
+             Column(3, db.lo_partkey), Column(4, db.lo_suppkey),
+             Column(5, db.lo_orderdate), Column(8, db.lo_quantity),
+             Column(9, db.lo_extendedprice), Column(11, db.lo_discount),
+             Column(12, db.lo_revenue), Column(13, db.lo_supplycost));
 
-  q1p1<std::unordered_set<uint32_t>>("q1p1<std::unordered_set>", db);
+  all<std::unordered_set<uint32_t>, std::unordered_map<uint32_t, uint16_t>>(
+      "std", db);
 
-  q1p2<std::unordered_set<uint32_t>>("q1p2<std::unordered_set>", db);
-
-  q1p3<std::unordered_set<uint32_t>>("q1p3<std::unordered_set>", db);
-
-  q1p1<absl::flat_hash_set<uint32_t>>("q1p1<absl::flat_hash_set>", db);
-
-  q1p2<absl::flat_hash_set<uint32_t>>("q1p2<absl::flat_hash_set>", db);
-
-  q1p3<absl::flat_hash_set<uint32_t>>("q1p3<absl::flat_hash_set>", db);
+  all<absl::flat_hash_set<uint32_t>, absl::flat_hash_map<uint32_t, uint16_t>>(
+      "absl", db);
 
   return 0;
 }

@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 
+find_package(SQLite3 REQUIRED)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -24,4 +26,4 @@ set(ABSL_PROPAGATE_CXX_STD ON)
 FetchContent_MakeAvailable(abseil)
 
 add_executable(ssb_cpp main.cpp)
-target_link_libraries(ssb_cpp TBB::tbb absl::base absl::flat_hash_set)
+target_link_libraries(ssb_cpp SQLite::SQLite3 TBB::tbb absl::base absl::flat_hash_set absl::flat_hash_map)
