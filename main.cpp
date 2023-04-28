@@ -300,6 +300,37 @@ void q2(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
   });
 
   print(result);
+
+  std::vector<std::tuple<uint32_t, uint16_t, uint16_t>> agg_input;
+  for (size_t i = 0; i < db.lo_orderdate.size(); ++i) {
+    auto part_it = hash_map_part.find(db.lo_partkey[i]);
+    if (part_it != hash_map_part.end() &&
+        hash_set_supplier.find(db.lo_suppkey[i]) != hash_set_supplier.end()) {
+      auto date_it = hash_map_date.find(db.lo_orderdate[i]);
+      if (date_it != hash_map_date.end()) {
+        agg_input.emplace_back(db.lo_revenue[i], date_it->second,
+                               part_it->second);
+      }
+    }
+  }
+
+  latency = time([&] {
+    acc = tbb::parallel_reduce(
+        tbb::blocked_range<size_t>(0, agg_input.size()), Accumulator(512),
+        [&agg_input](const tbb::blocked_range<size_t> &r, Accumulator acc) {
+          for (size_t i = r.begin(); i < r.end(); ++i) {
+            auto &[lo_revenue, d_year, p_brand1] = agg_input[i];
+            std::pair<bool, int64_t> &slot =
+                acc[((d_year - 1992) << 6) | ((p_brand1 - 40) & 0b111111)];
+            slot.first = true;
+            slot.second += lo_revenue;
+          }
+          return acc;
+        },
+        agg_merge);
+  });
+
+  log(query, "Agg", latency);
 }
 
 template <typename HSK32>
