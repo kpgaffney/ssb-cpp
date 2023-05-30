@@ -17,7 +17,7 @@ DROP TABLE IF EXISTS yearmonth_codes;
 
 CREATE TABLE part
 (
-    p_partkey   INTEGER,
+    partkey   INTEGER,
     p_name      TEXT,
     p_mfgr      TEXT,
     p_category  TEXT,
@@ -26,7 +26,7 @@ CREATE TABLE part
     p_type      TEXT,
     p_size      INTEGER,
     p_container TEXT,
-    PRIMARY KEY (p_partkey)
+    PRIMARY KEY (partkey)
 );
 
 CREATE TABLE supplier
@@ -97,14 +97,14 @@ CREATE TABLE lineorder
     lo_shipmode      TEXT,
     PRIMARY KEY (lo_orderkey, lo_linenumber),
     FOREIGN KEY (lo_custkey) REFERENCES customer (c_custkey),
-    FOREIGN KEY (lo_partkey) REFERENCES part (p_partkey),
+    FOREIGN KEY (lo_partkey) REFERENCES part (partkey),
     FOREIGN KEY (lo_suppkey) REFERENCES supplier (s_suppkey),
     FOREIGN KEY (lo_orderdate) REFERENCES date (d_datekey)
 );
 
 CREATE TABLE part_encoded
 (
-    p_partkey   INTEGER,
+    partkey   INTEGER,
     p_name      TEXT,
     p_mfgr      INTEGER,
     p_category  INTEGER,
@@ -113,7 +113,7 @@ CREATE TABLE part_encoded
     p_type      TEXT,
     p_size      INTEGER,
     p_container TEXT,
-    PRIMARY KEY (p_partkey)
+    PRIMARY KEY (partkey)
 );
 
 CREATE TABLE supplier_encoded
@@ -256,7 +256,7 @@ FROM date
 ORDER BY d_yearmonth;
 
 INSERT INTO part_encoded
-SELECT p_partkey,
+SELECT partkey,
        p_name,
        mfgr_code,
        category_code,
