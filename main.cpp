@@ -697,8 +697,8 @@ void q3p234(
                 auto date_it = hm_date.find(db.lo.orderdate[i]);
                 if (date_it != hm_date.end()) {
                   std::pair<bool, int64_t> &slot =
-                      acc[(cust_it->second << 8) | (supp_it->second << 3) |
-                          (date_it->second - 1992)];
+                      acc[((cust_it->second - 221) << 8) |
+                          (supp_it->second << 3) | (date_it->second - 1992)];
                   slot.first = true;
                   slot.second += db.lo.revenue[i];
                 }
