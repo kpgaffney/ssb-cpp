@@ -744,7 +744,7 @@ void q3p234(
           for (size_t i = r.begin(); i < r.end(); ++i) {
             auto &[lo_revenue, c_city, s_city, d_year] = agg_input[i];
             std::pair<bool, int64_t> &slot =
-                acc[((c_city << 8) - 221) | (s_city << 3) | (d_year - 1992)];
+                acc[((c_city - 221) << 8) | (s_city << 3) | (d_year - 1992)];
             slot.first = true;
             slot.second += lo_revenue;
           }
