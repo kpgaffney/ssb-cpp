@@ -25,5 +25,13 @@ FetchContent_Declare(
 set(ABSL_PROPAGATE_CXX_STD ON)
 FetchContent_MakeAvailable(abseil)
 
-add_executable(ssb_cpp main.cpp)
+add_executable(
+        ssb_cpp
+        src/common.hpp
+        src/queries/q1.cpp
+        src/queries/q2.cpp
+        src/queries/q3.cpp
+        src/queries/q4.cpp
+        src/main.cpp
+)
 target_link_libraries(ssb_cpp SQLite::SQLite3 TBB::tbb absl::base absl::flat_hash_set absl::flat_hash_map)
