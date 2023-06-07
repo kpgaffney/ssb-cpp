@@ -24,7 +24,7 @@ void q1(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
         uint64_t(0),
         [&](const tbb::blocked_range<size_t> &r, uint64_t acc) {
           for (size_t i = r.begin(); i < r.end(); ++i) {
-            if (c2(i) && hs.find(db.lo.orderdate[i]) != hs.end()) {
+            if (c2(i) && hs.contains(db.lo.orderdate[i])) {
               acc += db.lo.extendedprice[i] * db.lo.discount[i];
             }
           }
@@ -39,7 +39,7 @@ void q1(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
 
   std::vector<size_t> idx;
   for (size_t i = 0; i < db.lo.orderdate.size(); ++i) {
-    if (c2(i) && hs.find(db.lo.orderdate[i]) != hs.end()) {
+    if (c2(i) && hs.contains(db.lo.orderdate[i])) {
       idx.push_back(i);
     }
   }

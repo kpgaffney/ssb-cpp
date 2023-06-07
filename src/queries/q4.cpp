@@ -148,9 +148,9 @@ void q4p1(const Database &db) {
         Accumulator(256),
         [&](const tbb::blocked_range<size_t> &r, Accumulator acc) {
           for (size_t i = r.begin(); i < r.end(); ++i) {
-            if (hs_supplier.find(db.lo.suppkey[i]) != hs_supplier.end()) {
+            if (hs_supplier.contains(db.lo.suppkey[i])) {
               auto &hs_part_pt = hs_part[db.lo.partkey[i] % n_pt];
-              if (hs_part_pt.find(db.lo.partkey[i]) != hs_part_pt.end()) {
+              if (hs_part_pt.contains(db.lo.partkey[i])) {
                 auto &hm_cust_pt = hm_customer[db.lo.custkey[i] % n_pt];
                 auto cust_it = hm_cust_pt.find(db.lo.custkey[i]);
                 if (cust_it != hm_cust_pt.end()) {
@@ -178,9 +178,9 @@ void q4p1(const Database &db) {
 
   std::vector<std::tuple<uint32_t, uint32_t, uint16_t, uint8_t>> agg_input;
   for (size_t i = 0; i < db.lo.orderdate.size(); ++i) {
-    if (hs_supplier.find(db.lo.suppkey[i]) != hs_supplier.end()) {
+    if (hs_supplier.contains(db.lo.suppkey[i])) {
       auto &hs_part_pt = hs_part[db.lo.partkey[i] % n_pt];
-      if (hs_part_pt.find(db.lo.partkey[i]) != hs_part_pt.end()) {
+      if (hs_part_pt.contains(db.lo.partkey[i])) {
         auto &hm_cust_pt = hm_customer[db.lo.custkey[i] % n_pt];
         auto cust_it = hm_cust_pt.find(db.lo.custkey[i]);
         if (cust_it != hm_cust_pt.end()) {
@@ -303,7 +303,7 @@ void q4p2(const Database &db) {
               auto date_it = hm_date.find(db.lo.orderdate[i]);
               if (date_it != hm_date.end()) {
                 auto &hs_cust_pt = hs_customer[db.lo.custkey[i] % n_pt];
-                if (hs_cust_pt.find(db.lo.custkey[i]) != hs_cust_pt.end()) {
+                if (hs_cust_pt.contains(db.lo.custkey[i])) {
                   auto &hm_part_pt = hm_part[db.lo.partkey[i] % n_pt];
                   auto part_it = hm_part_pt.find(db.lo.partkey[i]);
                   if (part_it != hm_part_pt.end()) {
@@ -338,7 +338,7 @@ void q4p2(const Database &db) {
       auto date_it = hm_date.find(db.lo.orderdate[i]);
       if (date_it != hm_date.end()) {
         auto &hs_cust_pt = hs_customer[db.lo.custkey[i] % n_pt];
-        if (hs_cust_pt.find(db.lo.custkey[i]) != hs_cust_pt.end()) {
+        if (hs_cust_pt.contains(db.lo.custkey[i])) {
           auto &hm_part_pt = hm_part[db.lo.partkey[i] % n_pt];
           auto part_it = hm_part_pt.find(db.lo.partkey[i]);
           if (part_it != hm_part_pt.end()) {
@@ -465,7 +465,7 @@ void q4p3(const Database &db) {
               auto date_it = hm_date.find(db.lo.orderdate[i]);
               if (date_it != hm_date.end()) {
                 auto &hs_cust_pt = hs_customer[db.lo.custkey[i] % n_pt];
-                if (hs_cust_pt.find(db.lo.custkey[i]) != hs_cust_pt.end()) {
+                if (hs_cust_pt.contains(db.lo.custkey[i])) {
                   auto &hm_part_pt = hm_part[db.lo.partkey[i] % n_pt];
                   auto part_it = hm_part_pt.find(db.lo.partkey[i]);
                   if (part_it != hm_part_pt.end()) {
@@ -501,7 +501,7 @@ void q4p3(const Database &db) {
       auto date_it = hm_date.find(db.lo.orderdate[i]);
       if (date_it != hm_date.end()) {
         auto &hs_cust_pt = hs_customer[db.lo.custkey[i] % n_pt];
-        if (hs_cust_pt.find(db.lo.custkey[i]) != hs_cust_pt.end()) {
+        if (hs_cust_pt.contains(db.lo.custkey[i])) {
           auto &hm_part_pt = hm_part[db.lo.partkey[i] % n_pt];
           auto part_it = hm_part_pt.find(db.lo.partkey[i]);
           if (part_it != hm_part_pt.end()) {

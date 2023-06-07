@@ -90,10 +90,9 @@ void q2(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
           for (size_t i = r.begin(); i < r.end(); ++i) {
             auto &hm_part_pt = hm_part[db.lo.partkey[i] % n_pt];
             auto part_it = hm_part_pt.find(db.lo.partkey[i]);
-            if (part_it != hm_part_pt.end() &&
-                hs_supplier.find(db.lo.suppkey[i]) != hs_supplier.end()) {
-              auto date_it = hm_date.find(db.lo.orderdate[i]);
-              if (date_it != hm_date.end()) {
+            if (part_it != hm_part_pt.end()) {
+              if (hs_supplier.contains(db.lo.suppkey[i])) {
+                auto date_it = hm_date.find(db.lo.orderdate[i]);
                 std::pair<bool, int64_t> &slot =
                     acc[((date_it->second - 1992) << 6) |
                         ((part_it->second - 40) & 0b111111)];
@@ -119,8 +118,7 @@ void q2(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
   for (size_t i = 0; i < db.lo.orderdate.size(); ++i) {
     auto &hm_part_pt = hm_part[db.lo.partkey[i] % n_pt];
     auto part_it = hm_part_pt.find(db.lo.partkey[i]);
-    if (part_it != hm_part_pt.end() &&
-        hs_supplier.find(db.lo.suppkey[i]) != hs_supplier.end()) {
+    if (part_it != hm_part_pt.end() && hs_supplier.contains(db.lo.suppkey[i])) {
       auto date_it = hm_date.find(db.lo.orderdate[i]);
       if (date_it != hm_date.end()) {
         agg_input.emplace_back(
