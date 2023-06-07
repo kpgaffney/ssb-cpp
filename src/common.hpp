@@ -40,8 +40,7 @@ template <typename T> void print(std::vector<T> result) {
 
 template <typename T>
 void log(const std::string &query, const std::string &key, T &&value) {
-  std::cout << R"({"query": ")" << query << R"(", ")" << key << R"(": ")"
-            << value << R"("})" << std::endl;
+  std::cerr << query << ',' << key << ',' << value << std::endl;
 }
 
 struct Part {

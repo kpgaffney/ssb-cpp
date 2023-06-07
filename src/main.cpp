@@ -67,36 +67,36 @@ void read_table(const char *path, const char *table, Column<T>... columns) {
 int main(int argc, char **argv) {
   if (argc != 2) {
     std::cerr << "USAGE: " << std::endl;
-    std::cerr << argv[0] << " DATA_DIR" << std::endl;
+    std::cerr << argv[0] << " DB_PATH" << std::endl;
     return 1;
   }
 
-  char *data_dir = argv[1];
+  char *db_path = argv[1];
 
   Database db;
 
-  read_table(data_dir,
+  read_table(db_path,
              "part_encoded",
              Column(0, db.p.partkey),
              Column(2, db.p.mfgr),
              Column(3, db.p.category),
              Column(4, db.p.brand1));
 
-  read_table(data_dir,
+  read_table(db_path,
              "supplier_encoded",
              Column(0, db.s.suppkey),
              Column(3, db.s.city),
              Column(4, db.s.nation),
              Column(5, db.s.region));
 
-  read_table(data_dir,
+  read_table(db_path,
              "customer_encoded",
              Column(0, db.c.custkey),
              Column(3, db.c.city),
              Column(4, db.c.nation),
              Column(5, db.c.region));
 
-  read_table(data_dir,
+  read_table(db_path,
              "date_encoded",
              Column(0, db.d.datekey),
              Column(4, db.d.year),
@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
              Column(6, db.d.yearmonth),
              Column(11, db.d.weeknuminyear));
 
-  read_table(data_dir,
+  read_table(db_path,
              "lineorder",
              Column(2, db.lo.custkey),
              Column(3, db.lo.partkey),
