@@ -88,10 +88,10 @@ void q2(const std::string &query, const Database &db, C1 &&c1, C2 &&c2) {
         Accumulator(512),
         [&](const tbb::blocked_range<size_t> &r, Accumulator acc) {
           for (size_t i = r.begin(); i < r.end(); ++i) {
-            auto &hm_part_pt = hm_part[db.lo.partkey[i] % n_pt];
-            auto part_it = hm_part_pt.find(db.lo.partkey[i]);
-            if (part_it != hm_part_pt.end()) {
-              if (hs_supplier.contains(db.lo.suppkey[i])) {
+            if (hs_supplier.contains(db.lo.suppkey[i])) {
+              auto &hm_part_pt = hm_part[db.lo.partkey[i] % n_pt];
+              auto part_it = hm_part_pt.find(db.lo.partkey[i]);
+              if (part_it != hm_part_pt.end()) {
                 auto date_it = hm_date.find(db.lo.orderdate[i]);
                 std::pair<bool, int64_t> &slot =
                     acc[((date_it->second - 1992) << 6) |
